@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Probador de WebSocket - El Buen Sabor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .box {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .log {
+            background: #f0f0f0;
+            height: 300px;
+            overflow-y: scroll;
+            padding: 10px;
+            border: 1px solid #999;
+            font-family: monospace;
+        }
+
+        button {
+            padding: 8px 15px;
+            cursor: pointer;
+        }
+
+        input {
+            padding: 8px;
+        }
+
+        .status {
+            font-weight: bold;
+            color: red;
+        }
+
+        .connected {
+            color: green;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>🧪 Test WebSocket El Buen Sabor</h1>
+
+    <div class="box">
+        <h3>1. Conexión</h3>
+        <p>Estado: <span id="status" class="status">Desconectado</span></p>
+        <button onclick="connect()">Conectar al Servidor</button>
+        <button onclick="disconnect()">Desconectar</button>
+    </div>
+
+    <div class="box">
+        <h3>2. Suscripciones (Simulación)</h3>
+
+        <div style="margin-bottom: 10px;">
+            <label><strong>Soy un Cliente:</strong> ID Pedido:</label>
+            <input type="text" id="orderId" placeholder="Ej: 1" value="1">
+            <button onclick="subscribeClient()">Suscribirse a mi Pedido</button>
+        </div>
+
+        <hr>
+
+        <div>
+            <label><strong>Soy el Cocinero:</strong></label>
+            <button onclick="subscribeKitchen()">Suscribirse al Dashboard Cocina</button>
+        </div>
+    </div>
+
+    <div class="box">
+        <h3>3. Log de Mensajes Recibidos</h3>
+        <button onclick="clearLog()" style="float:right; font-size: 0.8em;">Limpiar</button>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        var stompClient = null;
+
+        function connect() {
+            // URL de tu backend local
+            var socket = new SockJS('http://localhost:8080/ws');
+            stompClient = Stomp.over(socket);
+
+            stompClient.connect({}, function (frame) {
+                setConnected(true);
+                log("✅ Conectado al servidor: " + frame);
+            }, function (error) {
+                log("❌ Error de conexión: " + error);
+            });
+        }
+
+        function disconnect() {
+            if (stompClient !== null) {
+                stompClient.disconnect();
+            }
+            setConnected(false);
+            log("🛑 Desconectado");
+        }
+
+        function subscribeClient() {
+            if (!stompClient) return alert("Primero conéctate!");
+
+            var id = document.getElementById('orderId').value;
+            var topic = '/topic/pedidos/' + id;
+
+            log("👀 Suscribiéndose como CLIENTE al canal: " + topic);
+
+            stompClient.subscribe(topic, function (message) {
+                // Aquí llega el mensaje del Backend
+                showResponse("CLIENTE (Pedido " + id + ")", JSON.parse(message.body));
+            });
+        }
+
+        function subscribeKitchen() {
+            if (!stompClient) return alert("Primero conéctate!");
+
+            var topic = '/topic/dashboard/cocina';
+            log("👨‍🍳 Suscribiéndose como COCINA al canal: " + topic);
+
+            stompClient.subscribe(topic, function (message) {
+                showResponse("DASHBOARD COCINA", JSON.parse(message.body));
+            });
+        }
+
+        function showResponse(source, body) {
+            var logDiv = document.getElementById('log');
+            var p = document.createElement('p');
+            p.style.borderBottom = "1px solid #ddd";
+            p.style.padding = "5px";
+
+            // Formatear JSON bonito
+            var content = "";
+            if (body.message) {
+                // Es mensaje para cliente (tiene texto y objeto)
+                content = `<strong>${source}:</strong> <span style="color:blue">${body.message}</span><br><pre>${JSON.stringify(body.pedido, null, 2)}</pre>`;
+            } else {
+                // Es mensaje para dashboard (solo objeto)
+                content = `<strong>${source}:</strong><br><pre>${JSON.stringify(body, null, 2)}</pre>`;
+            }
+
+            p.innerHTML = content;
+            logDiv.appendChild(p);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function log(message) {
+            var logDiv = document.getElementById('log');
+            var p = document.createElement('p');
+            p.textContent = message;
+            logDiv.appendChild(p);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function setConnected(connected) {
+            document.getElementById('status').textContent = connected ? "CONECTADO" : "Desconectado";
+            document.getElementById('status').className = connected ? "status connected" : "status";
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = "";
+        }
+    </script>
+</body>
+
+</html>
